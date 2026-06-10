@@ -198,6 +198,10 @@ def _resolve_safe_cwd(cwd: str) -> str:
 
 # Hermes-internal env vars that should NOT leak into terminal subprocesses.
 _HERMES_PROVIDER_ENV_FORCE_PREFIX = "_HERMES_FORCE_"
+# HUMR's integrations broker injects this literal in place of any real
+# credential and swaps it for the user's short-lived token on the wire, so it
+# is safe to surface to sandbox children regardless of the variable name.
+_HUMR_PLACEHOLDER_VALUE = "HUMR_PLACEHOLDER"
 
 # Hermes-managed AWS *inference* credentials for ``auth_type="aws_sdk"``
 # providers (Bedrock).  Scoped DELIBERATELY NARROW: this lists only the
@@ -448,6 +452,11 @@ def _inject_session_context_env(env: dict) -> None:
             env.pop(var_name, None)
 
 
+def _is_humr_placeholder(value: str) -> bool:
+    """True for HUMR's non-secret broker sentinel value."""
+    return str(value or "").strip() == _HUMR_PLACEHOLDER_VALUE
+
+
 def _sanitize_subprocess_env(base_env: dict | None, extra_env: dict | None = None) -> dict:
     """Filter Hermes-managed secrets from a subprocess environment."""
     try:
@@ -462,7 +471,11 @@ def _sanitize_subprocess_env(base_env: dict | None, extra_env: dict | None = Non
             continue
         if _is_hermes_internal_secret(key):
             continue
-        if key not in _HERMES_PROVIDER_ENV_BLOCKLIST or _is_passthrough(key):
+        if (
+            key not in _HERMES_PROVIDER_ENV_BLOCKLIST
+            or _is_passthrough(key)
+            or _is_humr_placeholder(value)
+        ):
             sanitized[key] = value
 
     for key, value in (extra_env or {}).items():
@@ -473,7 +486,7 @@ def _sanitize_subprocess_env(base_env: dict | None, extra_env: dict | None = Non
             sanitized[real_key] = value
         elif _is_hermes_internal_secret(key):
             continue
-        elif key not in _HERMES_PROVIDER_ENV_BLOCKLIST or _is_passthrough(key):
+        elif key not in _HERMES_PROVIDER_ENV_BLOCKLIST or _is_passthrough(key) or _is_humr_placeholder(value):
             sanitized[key] = value
 
     _inject_context_hermes_home(sanitized)
@@ -1142,7 +1155,7 @@ def _make_run_env(env: dict) -> dict:
             run_env[real_key] = v
         elif _is_hermes_internal_secret(k):
             continue
-        elif k not in _HERMES_PROVIDER_ENV_BLOCKLIST or _is_passthrough(k):
+        elif k not in _HERMES_PROVIDER_ENV_BLOCKLIST or _is_passthrough(k) or _is_humr_placeholder(v):
             run_env[k] = v
     path_key = _path_env_key(run_env)
     if path_key is not None:
