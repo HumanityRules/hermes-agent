@@ -19785,11 +19785,12 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 except Exception:
                     pass
             if not home_env:
-                # Slack dispatches all Hermes commands through a single
-                # parent slash command `/hermes`; bare `/sethome` is not
-                # registered and would fail with "app did not respond".
+                # Slack blocks native slash commands inside threads, so
+                # `/hermes sethome` fails there. The adapter rewrites a
+                # leading `!` on a known command to `/`, so `!sethome`
+                # dispatches in both DMs and threads -- recommend that.
                 sethome_cmd = (
-                    "/hermes sethome"
+                    "!sethome"
                     if source.platform == Platform.SLACK
                     else "/sethome"
                 )
