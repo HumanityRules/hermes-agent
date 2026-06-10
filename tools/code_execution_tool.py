@@ -205,6 +205,13 @@ _WINDOWS_ESSENTIAL_ENV_VARS = frozenset({
 })
 
 
+_HUMR_PLACEHOLDER_VALUE = "HUMR_PLACEHOLDER"
+
+
+def _is_humr_placeholder(value):
+    return str(value or "").strip() == _HUMR_PLACEHOLDER_VALUE
+
+
 def _scrub_child_env(source_env, is_passthrough=None, is_windows=None):
     """Produce the scrubbed child-process env for execute_code.
 
@@ -255,6 +262,9 @@ def _scrub_child_env(source_env, is_passthrough=None, is_windows=None):
             resolved = resolve_passthrough_value(k, v)
             if resolved is not None:
                 scrubbed[k] = resolved
+            continue
+        if _is_humr_placeholder(v):
+            scrubbed[k] = v
             continue
         if any(s in k.upper() for s in _SECRET_SUBSTRINGS):
             continue
