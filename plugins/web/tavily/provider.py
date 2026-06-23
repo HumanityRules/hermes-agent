@@ -35,9 +35,12 @@ logger = logging.getLogger(__name__)
 def _tavily_request(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """POST to the Tavily API and return the parsed JSON response.
 
-    Mirrors :func:`tools.web_tools._tavily_request`. Raises ``ValueError``
-    when ``TAVILY_API_KEY`` is unset; the caller catches and surfaces as
-    a typed error response.
+    Authentication rides the ``Authorization: Bearer <key>`` header — Tavily's
+    documented scheme — and the key is never placed in the JSON body. Carrying
+    it in a header is what lets an in-path proxy swap a placeholder bearer for
+    the real key without parsing the body. Raises ``ValueError`` when
+    ``TAVILY_API_KEY`` is unset; the caller catches and surfaces it as a typed
+    error response.
     """
     import httpx
 
@@ -51,12 +54,11 @@ def _tavily_request(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     base_url = get_provider_env("TAVILY_BASE_URL") or "https://api.tavily.com"
-    payload = dict(payload)  # don't mutate caller's dict
-    payload["api_key"] = api_key
     url = f"{base_url}/{endpoint.lstrip('/')}"
+    headers = {"Authorization": f"Bearer {api_key}"}
     logger.info("Tavily %s request to %s", endpoint, url)
 
-    response = httpx.post(url, json=payload, timeout=60)
+    response = httpx.post(url, json=payload, headers=headers, timeout=60)
     response.raise_for_status()
     return response.json()
 
