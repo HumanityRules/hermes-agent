@@ -179,3 +179,22 @@ class TestBedrockNormalize:
         assert nr.finish_reason == "stop"
         assert nr.usage is not None
         assert nr.usage.prompt_tokens == 10
+
+    def test_usage_carries_both_cache_buckets(self, transport):
+        """Cache reads AND writes from the adapter usage propagate to NormalizedResponse.usage."""
+        pre_normalized = SimpleNamespace(
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content="ok", tool_calls=None, reasoning=None, reasoning_content=None),
+                finish_reason="stop",
+            )],
+            usage=SimpleNamespace(
+                prompt_tokens=10,
+                completion_tokens=5,
+                total_tokens=15,
+                cache_read_input_tokens=2000,
+                cache_write_input_tokens=400,
+            ),
+        )
+        nr = transport.normalize_response(pre_normalized)
+        assert nr.usage.cached_tokens == 2000
+        assert nr.usage.cache_write_tokens == 400

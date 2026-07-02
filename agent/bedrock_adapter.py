@@ -764,7 +764,9 @@ def normalize_converse_response(response: Dict) -> SimpleNamespace:
         reasoning_content="\n\n".join(reasoning_parts) if reasoning_parts else None,
     )
 
-    # Build usage stats
+    # Build usage stats. cacheReadInputTokens/cacheWriteInputTokens are
+    # reported separately from (additive to) inputTokens per the Bedrock
+    # TokenUsage docs, so surface them for the cost/accounting pipeline.
     usage_data = response.get("usage", {})
     usage = SimpleNamespace(
         prompt_tokens=usage_data.get("inputTokens", 0),
@@ -772,6 +774,8 @@ def normalize_converse_response(response: Dict) -> SimpleNamespace:
         total_tokens=(
             usage_data.get("inputTokens", 0) + usage_data.get("outputTokens", 0)
         ),
+        cache_read_input_tokens=usage_data.get("cacheReadInputTokens", 0),
+        cache_write_input_tokens=usage_data.get("cacheWriteInputTokens", 0),
     )
 
     finish_reason = _converse_stop_reason_to_openai(stop_reason)
@@ -936,6 +940,8 @@ def stream_converse_with_callbacks(
             usage_data = {
                 "inputTokens": meta_usage.get("inputTokens", 0),
                 "outputTokens": meta_usage.get("outputTokens", 0),
+                "cacheReadInputTokens": meta_usage.get("cacheReadInputTokens", 0),
+                "cacheWriteInputTokens": meta_usage.get("cacheWriteInputTokens", 0),
             }
 
     # Flush remaining text
@@ -955,6 +961,8 @@ def stream_converse_with_callbacks(
         total_tokens=(
             usage_data.get("inputTokens", 0) + usage_data.get("outputTokens", 0)
         ),
+        cache_read_input_tokens=usage_data.get("cacheReadInputTokens", 0),
+        cache_write_input_tokens=usage_data.get("cacheWriteInputTokens", 0),
     )
 
     finish_reason = _converse_stop_reason_to_openai(stop_reason)

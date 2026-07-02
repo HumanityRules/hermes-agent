@@ -84,6 +84,7 @@ class Usage:
     completion_tokens: int = 0
     total_tokens: int = 0
     cached_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 @dataclass

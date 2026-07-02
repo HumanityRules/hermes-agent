@@ -615,3 +615,67 @@ def test_deepseek_v4_flash_estimate_usage_cost():
     assert result.amount_usd is not None
     # 1M input × $0.14/M + 500K output × $0.28/M = $0.14 + $0.14 = $0.28
     assert float(result.amount_usd) == 0.28
+
+
+def test_bedrock_inference_profile_id_resolves_to_pricing_entry():
+    """Region-prefixed, dated, versioned Bedrock IDs must match the table.
+
+    Before the bedrock route branch, ``us.anthropic.claude-sonnet-4-6-...-v1:0``
+    fell through to the generic route (model unchanged) and never matched the
+    ``anthropic.claude-sonnet-4-6`` snapshot key, so Bedrock sessions showed as
+    unknown cost in insights.
+    """
+    entry = get_pricing_entry(
+        "us.anthropic.claude-sonnet-4-6-20250514-v1:0",
+        provider="bedrock",
+    )
+
+    assert entry is not None
+    assert float(entry.input_cost_per_million) == 3.0
+    assert float(entry.output_cost_per_million) == 15.0
+
+
+def test_bedrock_bare_region_prefixed_id_resolves():
+    """The local HUMR bedrock config uses a bare ``us.<vendor>.<model>`` id."""
+    entry = get_pricing_entry("us.anthropic.claude-sonnet-4-6", provider="bedrock")
+
+    assert entry is not None
+    assert float(entry.input_cost_per_million) == 3.0
+
+
+def test_normalize_usage_bedrock_keeps_cache_buckets_additive():
+    """Bedrock reports cache tokens separately from inputTokens, so they must be
+    taken directly with no OpenAI-style subtraction."""
+    usage = SimpleNamespace(
+        prompt_tokens=1000,
+        completion_tokens=500,
+        cache_read_input_tokens=2000,
+        cache_write_input_tokens=400,
+    )
+
+    normalized = normalize_usage(usage, provider="bedrock", api_mode="bedrock_converse")
+
+    assert normalized.input_tokens == 1000
+    assert normalized.output_tokens == 500
+    assert normalized.cache_read_tokens == 2000
+    assert normalized.cache_write_tokens == 400
+    assert normalized.prompt_tokens == 3400
+
+
+def test_estimate_usage_cost_bedrock_with_cache_tokens():
+    """End-to-end: a cache-heavy Bedrock turn produces a dollar estimate rather
+    than bailing to ``unknown`` on the missing-cache-rate guard."""
+    result = estimate_usage_cost(
+        "us.anthropic.claude-sonnet-4-6-20250514-v1:0",
+        CanonicalUsage(
+            input_tokens=1_000_000,
+            output_tokens=1_000_000,
+            cache_read_tokens=1_000_000,
+            cache_write_tokens=1_000_000,
+        ),
+        provider="bedrock",
+    )
+
+    assert result.status == "estimated"
+    # input $3 + output $15 + cache read $0.30 + cache write $3.75 = $22.05
+    assert float(result.amount_usd) == 22.05

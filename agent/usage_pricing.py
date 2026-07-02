@@ -934,6 +934,8 @@ def resolve_billing_route(
         # Fireworks model ids look like accounts/fireworks/models/<name>;
         # rsplit("/", 1)[-1] yields just <name> which is what the dict keys on.
         return BillingRoute(provider="fireworks", model=model.rsplit("/", 1)[-1], base_url=base_url or "", billing_mode="official_docs_snapshot")
+    if provider_name == "bedrock" or ("bedrock-runtime" in base and base_url_host_matches(base_url or "", "amazonaws.com")):
+        return BillingRoute(provider="bedrock", model=_normalize_bedrock_model_name(model), base_url=base_url or "", billing_mode="official_docs_snapshot")
     if provider_name in {"custom", "local"} or (base and "localhost" in base):
         return BillingRoute(provider=provider_name or "custom", model=model, base_url=base_url or "", billing_mode="unknown")
     return BillingRoute(provider=provider_name or "unknown", model=model.split("/")[-1] if model else "", base_url=base_url or "", billing_mode="unknown")
@@ -1092,6 +1094,10 @@ def get_pricing_entry(
         )
     if route.provider == "openrouter":
         return _openrouter_pricing_entry(route)
+    if route.provider == "bedrock":
+        # Bedrock is not an OpenAI-compatible /models endpoint; price from the
+        # official-docs snapshot keyed by the normalized model id.
+        return _lookup_official_docs_pricing(route)
     if route.base_url:
         entry = _pricing_entry_from_metadata(
             fetch_endpoint_model_metadata(route.base_url, api_key=api_key or ""),
@@ -1141,6 +1147,14 @@ def normalize_usage(
             getattr(details, "cache_creation_tokens", 0) if details else 0
         )
         input_tokens = max(0, input_total - cache_read_tokens - cache_write_tokens)
+    elif mode == "bedrock_converse" or provider_name == "bedrock":
+        # Bedrock Converse reports cache tokens separately from inputTokens
+        # (additive, like the Anthropic Messages API per the TokenUsage docs),
+        # so take each bucket directly with no subtraction.
+        input_tokens = _to_int(getattr(response_usage, "prompt_tokens", 0))
+        output_tokens = _to_int(getattr(response_usage, "completion_tokens", 0))
+        cache_read_tokens = _to_int(getattr(response_usage, "cache_read_input_tokens", 0))
+        cache_write_tokens = _to_int(getattr(response_usage, "cache_write_input_tokens", 0))
     else:
         prompt_total = _to_int(getattr(response_usage, "prompt_tokens", 0))
         output_tokens = _to_int(getattr(response_usage, "completion_tokens", 0))

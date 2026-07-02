@@ -103,6 +103,8 @@ class BedrockTransport(ProviderTransport):
                 prompt_tokens=getattr(u, "prompt_tokens", 0) or 0,
                 completion_tokens=getattr(u, "completion_tokens", 0) or 0,
                 total_tokens=getattr(u, "total_tokens", 0) or 0,
+                cached_tokens=getattr(u, "cache_read_input_tokens", 0) or 0,
+                cache_write_tokens=getattr(u, "cache_write_input_tokens", 0) or 0,
             )
 
         reasoning = getattr(msg, "reasoning", None) or getattr(msg, "reasoning_content", None)
