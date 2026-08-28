@@ -1,3 +1,8 @@
+> **HumanityRules fork** — this repository is [HumanityRules](https://humanityrules.io)' vendored fork of
+> [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). The default branch `humr/main`
+> is the upstream release we ship plus our `humr:`-prefixed patches. For Hermes itself — issues, docs,
+> releases — head upstream.
+
 <p align="center">
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
